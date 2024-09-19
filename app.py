@@ -1,7 +1,5 @@
 import logging
-logging.basicConfig(level=logging.DEBUG)
-logging.debug("Application starting")
-
+import sys
 import os
 from flask import Flask, request, send_file
 from werkzeug.utils import secure_filename
@@ -10,9 +8,13 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from io import BytesIO
 
+# Set up logging
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+logging.debug("Application starting")
+
 app = Flask(__name__)
 
-# Ensure the upload folder exists and create it if it doesn't
+# Ensure the upload folder exists
 UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
@@ -20,6 +22,7 @@ if not os.path.exists(UPLOAD_FOLDER):
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 def remove_branding(input_pdf_path, output_pdf_path):
+    logging.debug(f"Processing PDF: {input_pdf_path}")
     with open(input_pdf_path, 'rb') as file:
         reader = PyPDF2.PdfReader(file)
         writer = PyPDF2.PdfWriter()
@@ -45,42 +48,47 @@ def remove_branding(input_pdf_path, output_pdf_path):
 
             writer.add_page(page)
 
+        logging.debug(f"Writing processed PDF to: {output_pdf_path}")
         with open(output_pdf_path, 'wb') as output_file:
             writer.write(output_file)
 
-@app.route('/', methods=['GET', 'POST'])
-def upload_file():
-    if request.method == 'POST':
-        if 'file' not in request.files:
-            return 'No file part'
-        file = request.files['file']
-        if file.filename == '':
-            return 'No selected file'
-        if file and file.filename.lower().endswith('.pdf'):
-            filename = secure_filename(file.filename)
-            input_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            output_path = os.path.join(app.config['UPLOAD_FOLDER'], 'processed_' + filename)
-            file.save(input_path)
-            remove_branding(input_path, output_path)
-            return send_file(output_path, as_attachment=True)
-    return '''
-    <!doctype html>
-    <html>
-    <head>
-        <title>PDF Branding Remover</title>
-    </head>
-    <body>
-        <h1>Upload PDF to Remove Branding</h1>
-        <form method=post enctype=multipart/form-data>
-            <input type=file name=file accept=".pdf">
-            <input type=submit value=Upload>
-        </form>
-    </body>
-    </html>
-    '''
+@app.route('/')
+def hello():
+    logging.debug("Hello route accessed")
+    return "Hello, World! PDF Branding Remover is running."
 
-if __name__ == '__main__':
-    app.run(debug=True)
+@app.route('/health')
+def health_check():
+    logging.debug("Health check route accessed")
+    return 'OK', 200
+
+@app.route('/remove-branding', methods=['POST'])
+def upload_file():
+    logging.debug("Remove branding route accessed")
+    if 'file' not in request.files:
+        logging.error("No file part in the request")
+        return 'No file part', 400
+    file = request.files['file']
+    if file.filename == '':
+        logging.error("No selected file")
+        return 'No selected file', 400
+    if file and file.filename.lower().endswith('.pdf'):
+        filename = secure_filename(file.filename)
+        input_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        output_path = os.path.join(app.config['UPLOAD_FOLDER'], 'processed_' + filename)
+        file.save(input_path)
+        logging.debug(f"File saved to {input_path}")
+        try:
+            remove_branding(input_path, output_path)
+            logging.debug(f"Branding removed, processed file at {output_path}")
+            return send_file(output_path, as_attachment=True)
+        except Exception as e:
+            logging.error(f"Error processing PDF: {str(e)}")
+            return f'Error processing PDF: {str(e)}', 500
+    else:
+        logging.error("Invalid file type")
+        return 'Invalid file type. Please upload a PDF.', 400
 
 if __name__ == "__main__":
+    logging.debug("Starting Flask application")
     app.run(host='0.0.0.0', port=8000)
