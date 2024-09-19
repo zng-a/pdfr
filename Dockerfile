@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-RUN mkdir /app/uploads && chmod 777 /app/uploadsq
+RUN mkdir /app/uploads && chmod 777 /app/uploads
 
 COPY . .
 
