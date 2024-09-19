@@ -1,3 +1,7 @@
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logging.debug("Application starting")
+
 import os
 from flask import Flask, request, send_file
 from werkzeug.utils import secure_filename
@@ -77,3 +81,6 @@ def upload_file():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=8000)
