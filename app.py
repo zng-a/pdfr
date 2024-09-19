@@ -8,7 +8,7 @@ from io import BytesIO
 
 app = Flask(__name__)
 
-# Ensure the upload folder exists
+# Ensure the upload folder exists and create it if it doesn't
 UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
