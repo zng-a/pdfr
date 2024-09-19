@@ -1,7 +1,7 @@
+import os
 import logging
 import sys
-import os
-from flask import Flask, request, send_file
+from flask import Flask, request, send_file, render_template, flash, redirect, url_for
 from werkzeug.utils import secure_filename
 import PyPDF2
 from reportlab.pdfgen import canvas
@@ -13,6 +13,7 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logging.debug("Application starting")
 
 app = Flask(__name__)
+app.secret_key = 'your_secret_key_here'  # Replace with a real secret key
 
 # Ensure the upload folder exists
 UPLOAD_FOLDER = 'uploads'
@@ -20,6 +21,7 @@ if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max-limit
 
 def remove_branding(input_pdf_path, output_pdf_path):
     logging.debug(f"Processing PDF: {input_pdf_path}")
@@ -53,25 +55,19 @@ def remove_branding(input_pdf_path, output_pdf_path):
             writer.write(output_file)
 
 @app.route('/')
-def hello():
-    logging.debug("Hello route accessed")
-    return "Hello, World! PDF Branding Remover is running."
+def index():
+    return render_template('index.html')
 
-@app.route('/health')
-def health_check():
-    logging.debug("Health check route accessed")
-    return 'OK', 200
-
-@app.route('/remove-branding', methods=['POST'])
+@app.route('/upload', methods=['POST'])
 def upload_file():
-    logging.debug("Remove branding route accessed")
+    logging.debug("Upload route accessed")
     if 'file' not in request.files:
-        logging.error("No file part in the request")
-        return 'No file part', 400
+        flash('No file part')
+        return redirect(url_for('index'))
     file = request.files['file']
     if file.filename == '':
-        logging.error("No selected file")
-        return 'No selected file', 400
+        flash('No selected file')
+        return redirect(url_for('index'))
     if file and file.filename.lower().endswith('.pdf'):
         filename = secure_filename(file.filename)
         input_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -81,14 +77,20 @@ def upload_file():
         try:
             remove_branding(input_path, output_path)
             logging.debug(f"Branding removed, processed file at {output_path}")
-            return send_file(output_path, as_attachment=True)
+            return send_file(output_path, as_attachment=True, download_name='processed_' + filename)
         except Exception as e:
             logging.error(f"Error processing PDF: {str(e)}")
-            return f'Error processing PDF: {str(e)}', 500
+            flash(f'Error processing PDF: {str(e)}')
+            return redirect(url_for('index'))
     else:
-        logging.error("Invalid file type")
-        return 'Invalid file type. Please upload a PDF.', 400
+        flash('Invalid file type. Please upload a PDF.')
+        return redirect(url_for('index'))
+
+@app.route('/health')
+def health_check():
+    logging.debug("Health check route accessed")
+    return 'OK', 200
 
 if __name__ == "__main__":
     logging.debug("Starting Flask application")
-    app.run(host='0.0.0.0', port=8000)
+    app.run(host='0.0.0.0', port=8000, debug=True)
