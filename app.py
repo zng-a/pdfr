@@ -54,6 +54,14 @@ def remove_branding(input_pdf_path, output_pdf_path):
         with open(output_pdf_path, 'wb') as output_file:
             writer.write(output_file)
 
+def cleanup_files(*file_paths):
+    for file_path in file_paths:
+        try:
+            os.remove(file_path)
+            logging.debug(f"Deleted file: {file_path}")
+        except Exception as e:
+            logging.error(f"Error deleting file {file_path}: {str(e)}")
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -71,15 +79,23 @@ def upload_file():
     if file and file.filename.lower().endswith('.pdf'):
         filename = secure_filename(file.filename)
         input_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        output_path = os.path.join(app.config['UPLOAD_FOLDER'], 'processed_' + filename)
+        output_path = os.path.join(app.config['UPLOAD_FOLDER'], 'BYAZ_' + filename)
         file.save(input_path)
         logging.debug(f"File saved to {input_path}")
         try:
             remove_branding(input_path, output_path)
             logging.debug(f"Branding removed, processed file at {output_path}")
-            return send_file(output_path, as_attachment=True, download_name='processed_' + filename)
+            
+            # Send the file
+            return_value = send_file(output_path, as_attachment=True, download_name='byaz_' + filename)
+            
+            # Clean up files after sending
+            cleanup_files(input_path, output_path)
+            
+            return return_value
         except Exception as e:
             logging.error(f"Error processing PDF: {str(e)}")
+            cleanup_files(input_path)  # Clean up input file if processing fails
             flash(f'Error processing PDF: {str(e)}')
             return redirect(url_for('index'))
     else:
